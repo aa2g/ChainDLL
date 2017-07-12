@@ -1,17 +1,14 @@
 #include "stdafx.h"
 
-
 extern "C" {
-	extern char chaindll;
+	extern char chaindll_begin;
+	extern char chaindll_ep;
+	extern char chaindll_eprel;
+	extern char chaindll_path;
+	extern char chaindll_name;
+	extern char chaindll_entry;
 	extern char chaindll_end;
 }
-
-struct ldrdata {
-	DWORD orig_ep;
-	WORD Length;
-	WORD MaximumLength;
-	WCHAR name[0];
-};
 
 int main(int argc, char **argv)
 {
@@ -55,16 +52,28 @@ int main(int argc, char **argv)
 	else {
 		printf("modified existing loader section for %s\n", argv[2]);
 	}
+	
+	uint8_t *p = buf + lsh->PointerToRawData;
+#define OFF(n) ((&chaindll_##n - &chaindll_begin))
+#define P(n) (p + OFF(n))
 
-	DWORD ldrlen = &chaindll_end - &chaindll;
-	memcpy(buf + lsh->PointerToRawData, &chaindll, ldrlen);
-	struct ldrdata *ldr = (struct ldrdata*)(buf + lsh->PointerToRawData + ldrlen);
-	ldr->Length = ldr->MaximumLength = (WORD)mbstowcs(ldr->name, argv[2], 512) * 2;
-	if (pe->OptionalHeader.AddressOfEntryPoint != lsh->VirtualAddress) {
-		ldr->orig_ep = pe->OptionalHeader.AddressOfEntryPoint - lsh->VirtualAddress - ldrlen - 8;
-		pe->OptionalHeader.AddressOfEntryPoint = lsh->VirtualAddress;
+	memcpy(p, &chaindll_begin, OFF(end));
+	if (pe->OptionalHeader.AddressOfEntryPoint != lsh->VirtualAddress + OFF(entry)) {
+		*((DWORD*)P(ep)) = pe->OptionalHeader.AddressOfEntryPoint - lsh->VirtualAddress - OFF(eprel);
+		pe->OptionalHeader.AddressOfEntryPoint = lsh->VirtualAddress + OFF(entry);
 	}
-
+	char *path = argv[2];
+	char *name;
+	name = strrchr(path, '\\');
+	if (!name) {
+		name = path;
+		path = ".";
+	}
+	else {
+		*name++ = 0;
+	}
+	strcpy((char*)P(path), path);
+	strcpy((char*)P(name), name);
 	fsize = lsh->PointerToRawData + lsh->SizeOfRawData;
 	pe->OptionalHeader.SizeOfImage = lsh->VirtualAddress + lsh->Misc.VirtualSize;
 	fseek(f, 0, SEEK_SET);
