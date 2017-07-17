@@ -93,6 +93,32 @@ good:
 
 chaindll_entry:
 	cld
+	sub 	esp, 1024
+	mov 	eax, esp
+	push 	1024
+	push 	eax
+	push 	0
+	call 	nn1
+	db 	"GetModuleFileNameA", 0
+nn1: 	call 	getapi
+	call 	edi
+	lea 	esi, [esp+eax]
+trim:
+	dec 	esi
+	cmp 	esi, esp
+	jle 	meh
+	cmp 	byte ptr [esi], '\'
+	jnz 	trim
+	mov 	byte ptr [esi], 0
+	push 	esp
+	call 	nn2
+	db 	"SetCurrentDirectoryA", 0
+nn2: 	call 	getapi
+	call 	edi
+meh:
+	add 	esp, 1024
+	
+
 	call	skip1
 	db		"SetDllDirectoryA", 0
 skip1:
